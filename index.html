@@ -1,138 +1,152 @@
 <!DOCTYPE html>
-<html lang="es">
-<head>
+<html>
+  <head>
     <meta charset="UTF-8">
-    <title>Portal Marca Venezuela - Quest Pro</title>
+    <title>Portal Marca Venezuela - FINAL FIX</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     
     <style>
-        #overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9); z-index: 10000;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            color: white; font-family: sans-serif; text-align: center;
-        }
-        .btn-ven {
-            padding: 15px 30px; font-size: 18px; background: #FFCC00; 
-            border: none; border-radius: 5px; font-weight: bold; cursor: pointer; color: #0033A0;
-        }
-        input { margin: 20px; color: white; }
+      #overlay {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.9); z-index: 10000;
+        display: flex; flex-direction: column; justify-content: center; align-items: center;
+        color: white; font-family: sans-serif; text-align: center;
+      }
+      .btn-ven {
+        padding: 15px 30px; font-size: 18px; background: #FFCC00; 
+        border: none; border-radius: 5px; font-weight: bold; cursor: pointer; color: #0033A0;
+      }
     </style>
 
     <script>
-        // 1. LÓGICA DE AGARRE (HAND TRACKING)
-        AFRAME.registerComponent('hand-grabber', {
-            init: function () {
-                this.grabbedEl = null;
-                this.el.addEventListener('pinchstarted', () => {
-                    let handPos = new THREE.Vector3();
-                    this.el.object3D.getWorldPosition(handPos);
-                    let items = document.querySelectorAll('.agarrable');
-                    let seleccionado = null;
-                    let dMin = 0.35; // Rango de 35cm
+      // Componente para detectar si el modelo GLB cargó o falló
+      AFRAME.registerComponent('model-status', {
+        init: function () {
+          this.el.addEventListener('model-loaded', () => { console.log("Modelo cargado correctamente"); });
+          this.el.addEventListener('model-error', (e) => { console.error("Error cargando el modelo", e); });
+        }
+      });
 
-                    items.forEach(item => {
-                        let itemPos = new THREE.Vector3();
-                        item.object3D.getWorldPosition(itemPos);
-                        if (handPos.distanceTo(itemPos) < dMin) { 
-                            dMin = handPos.distanceTo(itemPos); 
-                            seleccionado = item; 
-                        }
-                    });
+      // Lógica de Stencil (Portal)
+      AFRAME.registerComponent('stencil-mask', {
+        init: function () {
+          this.el.addEventListener('loaded', () => {
+            let mesh = this.el.getObject3D('mesh');
+            mesh.material.colorWrite = false;
+            mesh.material.stencilWrite = true;
+            mesh.material.stencilRef = 1;
+            mesh.material.stencilFunc = THREE.AlwaysStencilFunc;
+            mesh.material.stencilZPass = THREE.ReplaceStencilOp;
+          });
+        }
+      });
 
-                    if (seleccionado) {
-                        this.grabbedEl = seleccionado;
-                        this.el.object3D.attach(this.grabbedEl.object3D);
-                        this.grabbedEl.setAttribute('opacity', '0.6'); // Brillo/Feedback
-                    }
-                });
+      AFRAME.registerComponent('stencil-content', {
+        init: function () {
+          this.el.addEventListener('loaded', () => {
+            let mesh = this.el.getObject3D('mesh');
+            mesh.material.stencilWrite = true;
+            mesh.material.stencilRef = 1;
+            mesh.material.stencilFunc = THREE.EqualStencilFunc;
+          });
+        }
+      });
 
-                this.el.addEventListener('pinchended', () => {
-                    if (this.grabbedEl) {
-                        this.el.sceneEl.object3D.attach(this.grabbedEl.object3D);
-                        this.grabbedEl.setAttribute('opacity', '1.0');
-                        this.grabbedEl = null;
-                    }
-                });
+      // Sistema de Agarre con Manos
+      AFRAME.registerComponent('hand-grabber', {
+        init: function () {
+          this.grabbedEl = null;
+          this.el.addEventListener('pinchstarted', () => {
+            let handPos = new THREE.Vector3();
+            this.el.object3D.getWorldPosition(handPos);
+            let items = document.querySelectorAll('.agarrable');
+            let closest = null; let dMin = 0.35;
+            items.forEach(item => {
+              let itemPos = new THREE.Vector3();
+              item.object3D.getWorldPosition(itemPos);
+              let d = handPos.distanceTo(itemPos);
+              if (d < dMin) { dMin = d; closest = item; }
+            });
+            if (closest) {
+              this.grabbedEl = closest;
+              this.el.object3D.attach(this.grabbedEl.object3D);
+              this.grabbedEl.setAttribute('opacity', '0.6');
             }
-        });
-
-        // 2. LÓGICA DE PORTAL (STENCIL)
-        AFRAME.registerComponent('stencil-mask', {
-            init: function () {
-                this.el.addEventListener('loaded', () => {
-                    let mesh = this.el.getObject3D('mesh');
-                    mesh.material.colorWrite = false;
-                    mesh.material.stencilWrite = true;
-                    mesh.material.stencilRef = 1;
-                    mesh.material.stencilFunc = THREE.AlwaysStencilFunc;
-                    mesh.material.stencilZPass = THREE.ReplaceStencilOp;
-                });
+          });
+          this.el.addEventListener('pinchended', () => {
+            if (this.grabbedEl) {
+              this.el.sceneEl.object3D.attach(this.grabbedEl.object3D);
+              this.grabbedEl.setAttribute('opacity', '1.0');
+              this.grabbedEl = null;
             }
-        });
-
-        AFRAME.registerComponent('stencil-content', {
-            init: function () {
-                this.el.addEventListener('loaded', () => {
-                    let mesh = this.el.getObject3D('mesh');
-                    mesh.material.stencilWrite = true;
-                    mesh.material.stencilRef = 1;
-                    mesh.material.stencilFunc = THREE.EqualStencilFunc;
-                });
-            }
-        });
+          });
+        }
+      });
     </script>
-</head>
-<body>
+  </head>
+  <body>
 
     <div id="overlay">
-        <h1 style="color: #FFCC00;">MARCA VENEZUELA 360</h1>
-        <p>1. Selecciona el video 360 (.mp4) desde tu visor</p>
-        <input type="file" id="file-input" accept="video/mp4">
-        <button id="start-btn" class="btn-ven" style="display: none;">ACTIVAR PORTAL</button>
+      <h1 style="color: #FFCC00;">PORTAL MARCA VENEZUELA</h1>
+      <p>1. Selecciona el video .mp4 de tus lentes:</p>
+      <input type="file" id="file-input" accept="video/mp4" style="margin-bottom: 20px;">
+      <button id="start-btn" class="btn-ven" style="display: none;">INICIAR AR</button>
     </div>
 
-    <a-scene webxr="optionalFeatures: local-floor;" background="transparent" renderer="alpha: true; stencil: true;" xr-mode-ui="XRMode: ar">
-        
-        <a-assets>
-            <video id="video360" loop="true" crossorigin="anonymous" playsinline muted></video>
-            <a-asset-item id="puerta-3d" src="https://raw.githubusercontent.com/jesusdavidchacons-png/portalmarca/main/glitchhitch_portal.glb"></a-asset-item>
-        </a-assets>
+    <a-scene 
+      webxr="optionalFeatures: local-floor, hit-test; referenceSpaceType: local-floor" 
+      renderer="alpha: true; stencil: true;" 
+      xr-mode-ui="XRMode: ar">
+      
+      <a-assets>
+        <video id="video360" loop="true" crossorigin="anonymous" playsinline muted></video>
+        <a-asset-item id="puerta-3d" src="https://raw.githubusercontent.com/jesusdavidchacons-png/portalmarca/main/glitchhitch_portal.glb"></a-asset-item>
+      </a-assets>
 
-        <a-entity hand-tracking-controls="hand: left" hand-grabber></a-entity>
-        <a-entity hand-tracking-controls="hand: right" hand-grabber></a-entity>
+      <a-entity hand-tracking-controls="hand: left" hand-grabber></a-entity>
+      <a-entity hand-tracking-controls="hand: right" hand-grabber></a-entity>
 
-        <a-entity position="0 1.2 -0.8">
-            <a-box class="agarrable" position="-0.3 0 0" scale="0.1 0.1 0.1" color="#FFCC00"></a-box> 
-            <a-sphere class="agarrable" position="0 0 0" radius="0.08" color="#0033A0"></a-sphere>
-            <a-box class="agarrable" position="0.3 0 0" scale="0.1 0.1 0.1" color="#CF142B"></a-box>
-        </a-entity>
+      <a-entity position="0 1.2 -0.8">
+        <a-box class="agarrable" position="-0.3 0 0" scale="0.1 0.1 0.1" color="#FFCC00"></a-box> 
+        <a-sphere class="agarrable" position="0 0 0" radius="0.08" color="#0033A0"></a-sphere>
+        <a-box class="agarrable" position="0.3 0 0" scale="0.1 0.1 0.1" color="#CF142B"></a-box>
+      </a-entity>
 
-        <a-entity position="0 0 -2">
-            <a-gltf-model src="#puerta-3d" scale="1 1 1" position="0 0 0"></a-gltf-model>
-            
-            <a-plane stencil-mask position="0 1.2 0" width="1.6" height="2.2"></a-plane>
-            
-            <a-videosphere id="esfera-video" stencil-content src="#video360" radius="50" rotation="0 -90 0"></a-videosphere>
-        </a-entity>
+      <a-entity position="0 0 -2">
+        <a-gltf-model 
+          src="#puerta-3d" 
+          scale="2 2 2" 
+          position="0 0 0" 
+          model-status>
+        </a-gltf-model>
 
+        <a-plane stencil-mask position="0 1.2 0" width="1.6" height="2.2"></a-plane>
+
+        <a-videosphere id="esfera-video" stencil-content src="#video360" radius="50" rotation="0 -90 0"></a-videosphere>
+      </a-entity>
+
+      <a-entity camera look-controls wasd-controls position="0 1.6 0"></a-entity>
     </a-scene>
 
     <script>
-        const fileInput = document.getElementById('file-input');
-        const startBtn = document.getElementById('start-btn');
-        const video = document.getElementById('video360');
+      const fileInput = document.getElementById('file-input');
+      const startBtn = document.getElementById('start-btn');
+      const video = document.getElementById('video360');
 
-        fileInput.onchange = (e) => {
-            const url = URL.createObjectURL(e.target.files[0]);
-            video.src = url;
-            startBtn.style.display = 'block';
-        };
+      fileInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          video.src = URL.createObjectURL(file);
+          startBtn.style.display = 'block';
+        }
+      };
 
-        startBtn.onclick = () => {
-            video.play();
-            document.getElementById('overlay').style.display = 'none';
-        };
+      startBtn.onclick = () => {
+        video.play();
+        document.getElementById('overlay').style.display = 'none';
+        // Forzamos el modo AR si el icono no aparece
+        document.querySelector('a-scene').enterVR();
+      };
     </script>
-</body>
+  </body>
 </html>
